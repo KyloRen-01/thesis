@@ -1,0 +1,11 @@
+#cron logs
+/logs/
+
+# macOS clutter
+.DS_Store
+
+# Python byte-code cache
+__pycache__/
+*.py[cod]
+
+.env
