@@ -17,7 +17,6 @@ controls. It only processes content visible to the Selenium browser session.
 from __future__ import annotations
 
 import argparse
-import getpass
 import logging
 import os
 import re
@@ -35,44 +34,19 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
 try:
-    from dotenv import load_dotenv
-except ImportError:  # Optional at runtime; environment variables still work.
-    load_dotenv = None
-
-try:
     from .fb_scraping_config import FACEBOOK, KEYWORDS, PH_LOCATIONS
 except ImportError:
     # Allows direct execution with: py src/scraper/fb_flood_scraper.py
     from fb_scraping_config import FACEBOOK, KEYWORDS, PH_LOCATIONS
 
-try:
-    from .media_utils import download_images, extract_image_urls
-except ImportError:
-    from media_utils import download_images, extract_image_urls
-
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 RAW_DIR = BASE_DIR / "data" / "raw" / "facebook"
-IMAGE_DIR = RAW_DIR / "images"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 PH_TIME = timezone(timedelta(hours=8))
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 DEFAULT_PROFILE_DIR = BASE_DIR / ".facebook_chrome_profile"
-CSV_COLUMNS = [
-    "source",
-    "query_page",
-    "text",
-    "post_timestamp",
-    "scraped_timestamp",
-    "user",
-    "post_url",
-    "image_url",
-    "image_path",
-]
-
-if load_dotenv:
-    load_dotenv(BASE_DIR / ".env")
 
 
 def init_driver(
@@ -85,8 +59,8 @@ def init_driver(
 
     ``CHROMEDRIVER_PATH`` may be used when a local executable must be selected.
     If it is not supplied, Selenium Manager resolves a compatible driver.
-    ``profile_dir`` persists cookies between runs so a completed Facebook login
-    is not lost when the scraper exits.
+    ``profile_dir`` persists cookies between runs so manual Facebook login is
+    not lost when the scraper exits.
     """
 
     options = Options()
@@ -112,99 +86,6 @@ def init_driver(
     driver = webdriver.Chrome(service=service, options=options)
     driver.set_page_load_timeout(45)
     return driver
-
-
-def get_facebook_credentials() -> tuple[str, str]:
-    """Read credentials from the environment, prompting only when needed."""
-
-    email = os.getenv("FACEBOOK_EMAIL", "").strip()
-    password = os.getenv("FACEBOOK_PASSWORD", "")
-    if not email:
-        email = input("Facebook email: ").strip()
-    if not password:
-        password = getpass.getpass("Facebook password (input is hidden): ")
-    if not email or not password:
-        raise RuntimeError("Facebook login requires FACEBOOK_EMAIL and FACEBOOK_PASSWORD.")
-    return email, password
-
-
-def _facebook_email_fields(driver: webdriver.Chrome) -> list[Any]:
-    """Find Facebook login email fields across current login-page variants."""
-
-    return driver.find_elements(
-        By.XPATH,
-        "//input[@name='email' or @type='email' or @autocomplete='username' "
-        "or contains(translate(@placeholder, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', "
-        "'abcdefghijklmnopqrstuvwxyz'), 'email') "
-        "or contains(translate(@placeholder, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', "
-        "'abcdefghijklmnopqrstuvwxyz'), 'phone')]",
-    )
-
-
-def _facebook_password_fields(driver: webdriver.Chrome) -> list[Any]:
-    """Find Facebook password fields across current login-page variants."""
-
-    return driver.find_elements(
-        By.XPATH,
-        "//input[@name='pass' or @type='password' or "
-        "contains(translate(@placeholder, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', "
-        "'abcdefghijklmnopqrstuvwxyz'), 'password')]",
-    )
-
-
-def login_facebook(driver: webdriver.Chrome) -> None:
-    """Log in once and leave the resulting session in the persistent profile."""
-
-    email, password = get_facebook_credentials()
-    driver.get("https://www.facebook.com/login/")
-    time.sleep(3)
-
-    email_fields = _facebook_email_fields(driver)
-    password_fields = _facebook_password_fields(driver)
-    if not email_fields and not password_fields:
-        current_url = driver.current_url.lower()
-        if "login" in current_url:
-            raise RuntimeError(
-                "Facebook login page loaded, but its fields were not detected. "
-                "Facebook may have changed the login form."
-            )
-        logging.info("Facebook already has an authenticated session in this profile.")
-        return
-    if not email_fields or not password_fields:
-        raise RuntimeError(
-            "Facebook login form is visible, but the email or password field was not detected."
-        )
-
-    email_fields[0].clear()
-    email_fields[0].send_keys(email)
-    password_field = password_fields[0]
-    password_field.clear()
-    password_field.send_keys(password)
-    submit = driver.find_elements(By.NAME, "login")
-    if not submit:
-        submit = driver.find_elements(
-            By.XPATH,
-            "//button[contains(translate(normalize-space(.), "
-            "'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'log in')]",
-        )
-    if submit:
-        submit[0].click()
-    else:
-        password_field.submit()
-
-    time.sleep(6)
-    current_url = driver.current_url.lower()
-    if (
-        _facebook_email_fields(driver)
-        or _facebook_password_fields(driver)
-        or "login" in current_url
-        or "checkpoint" in current_url
-    ):
-        raise RuntimeError(
-            "Facebook login did not complete. Check the credentials or complete any "
-            "security challenge in headed mode, then rerun with the same profile."
-        )
-    logging.info("Facebook login completed; the session was saved in the Chrome profile.")
 
 
 def scroll_page(driver: webdriver.Chrome, scroll_times: int = 80, pause: float = 1.5) -> None:
@@ -306,23 +187,6 @@ def extract_post_url(driver: webdriver.Chrome, post: Any) -> str:
     return driver.current_url
 
 
-def extract_post_images(
-    driver: webdriver.Chrome,
-    post: Any,
-    post_url: str,
-) -> tuple[str, str] | None:
-    """Return one downloaded Facebook image as ``(url, local_path)``."""
-
-    image_urls = extract_image_urls(driver, post, "facebook")
-    return download_images(
-        driver,
-        image_urls,
-        IMAGE_DIR,
-        platform="facebook",
-        post_key=post_url,
-    )
-
-
 def process_fb_articles(
     driver: webdriver.Chrome,
     results: list[dict[str, str]],
@@ -357,15 +221,9 @@ def process_fb_articles(
             post_timestamp = format_readable(post_time)
 
         post_url = extract_post_url(driver, article)
-        dedupe_key = post_url if post_url != driver.current_url else f"{identifier}|{text}"
-        if dedupe_key in seen_urls:
+        if post_url in seen_urls:
             continue
-        downloaded_image = extract_post_images(driver, article, post_url)
-        if downloaded_image is None:
-            image_url, image_path = "", ""
-        else:
-            image_url, image_path = downloaded_image
-        seen_urls.add(dedupe_key)
+        seen_urls.add(post_url)
 
         results.append(
             {
@@ -376,8 +234,6 @@ def process_fb_articles(
                 "scraped_timestamp": scraped_timestamp,
                 "user": extract_username(article),
                 "post_url": post_url,
-                "image_url": image_url,
-                "image_path": image_path,
             }
         )
         added += 1
@@ -402,9 +258,8 @@ def scrape_facebook(
 ) -> pd.DataFrame:
     """Scrape configured Facebook pages, hashtags, and post searches.
 
-    With ``login=True``, credentials are read from FACEBOOK_EMAIL and
-    FACEBOOK_PASSWORD (or requested securely in the terminal) and the browser
-    stores the resulting session in the persistent profile.
+    With ``login=True``, the browser opens Facebook in headed mode and waits
+    for the user to complete login manually before collection starts.
     """
 
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
@@ -423,7 +278,12 @@ def scrape_facebook(
 
     try:
         if login:
-            login_facebook(driver)
+            driver.get("https://www.facebook.com/")
+            print(
+                "\nA Facebook Chrome window is open. Complete login manually there, "
+                "then return to this terminal and press Enter to start scraping."
+            )
+            input()
 
         for page in FACEBOOK["users"]:
             url = f"https://www.facebook.com/{page.rstrip('/')}/posts"
@@ -484,7 +344,15 @@ def scrape_facebook(
 
     dataframe = pd.DataFrame(
         results,
-        columns=CSV_COLUMNS,
+        columns=[
+            "source",
+            "query_page",
+            "text",
+            "post_timestamp",
+            "scraped_timestamp",
+            "user",
+            "post_url",
+        ],
     )
     logging.info("Facebook flood scraper collected %s post(s)", len(dataframe))
     return dataframe
@@ -503,7 +371,15 @@ def save_results(
 
     dataframe = pd.DataFrame(
         results,
-        columns=CSV_COLUMNS,
+        columns=[
+            "source",
+            "query_page",
+            "text",
+            "post_timestamp",
+            "scraped_timestamp",
+            "user",
+            "post_url",
+        ],
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_name(f".{output_path.name}.tmp")
@@ -570,7 +446,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--login",
         action="store_true",
-        help="Log in using FACEBOOK_* variables before scraping; implies headed mode.",
+        help="Open Facebook for manual login before scraping; implies headed mode.",
     )
     parser.add_argument("--chromedriver", help="Path to chromedriver.exe.")
     parser.add_argument(
@@ -609,9 +485,6 @@ def main() -> int:
     except KeyboardInterrupt:
         logging.warning("Scraper interrupted. The latest checkpoint, if any, remains at %s", output_path)
         return 130
-    except RuntimeError as error:
-        logging.error("Facebook scraper stopped: %s", error)
-        return 1
     except WebDriverException as error:
         logging.error("ChromeDriver could not start or load Facebook: %s", error)
         return 1
