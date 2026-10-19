@@ -1,0 +1,98 @@
+"""Configuration for the flood-focused X/Twitter collector.
+
+The account and query lists follow the senior disaster scraper's X collector,
+with the search terms narrowed to flood-related content for this project.
+"""
+
+
+TWITTER = {
+    "users": [
+        "ABSCBNNews",
+        "dost_pagasa",
+        "gmanews",
+        "inquirerdotnet",
+        "mindanewsdotcom",
+        "NDRRMC_OpCen",
+        "News5PH",
+        "PhilstarNews",
+        "phivolcs_dost",
+        "PilipinasToday_",
+        "rapplerdotcom",
+        "SunStarDavao",
+        "TVPatrol",
+        "dodongFyang",
+        "informedph2",
+        "NgobzONLI",
+        "WeatherMonitors",
+        "YaniYanCruz",
+        "patriotic_ph",
+        "jcpunongbrgy",
+        "joketerte30",
+        "TheKryptoWiz",
+        "factsprime35",
+        "sustainme_in",
+        "Top_Disaster",
+        "DisastersAndI",
+        "puretuts",
+        "NET25TV",
+        "DuDirtyShit125M",
+        "DetectiveMask",
+    ],
+    "search_queries": [
+        "flood Davao",
+        "flood Philippines",
+        "flooding Davao",
+        "flooding Philippines",
+        "Baha Davao",
+        "Baha Philippines",
+        "flash flood Philippines",
+        "flood alert Philippines",
+        "StreetFloodAlert",
+        "BahaPH",
+    ],
+}
+
+
+KEYWORDS = [
+    "flood",
+    "flooding",
+    "flash flood",
+    "floodwater",
+    "river overflow",
+    "street flood",
+    "urban flood",
+    "flood alert",
+    "flood warning",
+    "baha",
+    "pagbaha",
+    "nabaha",
+    "nabahaan",
+    "binaha",
+    "binabaha",
+    "lunop",
+    "paglunop",
+    "#flood",
+    "#floodalert",
+    "#bahaph",
+    "#streetfloodalert",
+]
+
+
+PH_LOCATIONS = [
+    "philippines",
+    "pilipinas",
+    "davao",
+    "davao city",
+    "tagum",
+    "panabo",
+    "samal",
+    "mati",
+    "digos",
+    "general santos",
+    "gensan",
+    "cagayan de oro",
+    "cebu",
+    "manila",
+    "quezon city",
+    "metro manila",
+]
